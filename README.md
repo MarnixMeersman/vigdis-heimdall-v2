@@ -9,6 +9,7 @@ The example app projects simple masks onto detected objects. Use the arrow keys 
 - `heimdall/` – package containing reusable modules
   - `laser.py` – LaserCube network interface
   - `detection.py` – YOLO detector and tracker wrapper
+  - `hand.py` – simple hand tracker powered by MediaPipe
   - `app.py` – high-level control loop combining camera input and laser output
 - `main.py` – small entrypoint launching `heimdall.app`
 - `test.py` – reference script from the LaserCube community for experimentation
@@ -18,7 +19,7 @@ The example app projects simple masks onto detected objects. Use the arrow keys 
 1. Install Python 3.8+.
 2. Install dependencies:
    ```bash
-   pip install pygame opencv-python ultralytics roboflow
+   pip install pygame opencv-python ultralytics roboflow mediapipe
    ```
 3. Connect your LaserCube and camera to the same network.
 4. Run `python main.py` to start the prototype.
