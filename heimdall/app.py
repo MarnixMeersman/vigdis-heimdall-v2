@@ -6,7 +6,7 @@ import struct
 import time
 from typing import Tuple
 
-from .detection import Detector
+from .hand import HandTracker
 from .laser import LaserCube, known_lasers, start_scanner
 
 ILDA_MAX = 0xFFF
@@ -20,26 +20,24 @@ COLORS = [
 ]
 
 
-def make_frame(box: Tuple[int, int, int, int]):
-    x1, y1, x2, y2 = box
-    pts = []
-    for x in (x1, x2):
-        for y in (y1, y2):
-            px = int(max(0, min(ILDA_MAX, x / 640 * ILDA_MAX)))
-            py = int(max(0, min(ILDA_MAX, 1 - y / 480) * ILDA_MAX))
-            r, g, b = COLORS[color_index]
-            r = int(r * power)
-            g = int(g * power)
-            b = int(b * power)
-            pts.append(struct.pack("<HHHHH", px, py, r, g, b))
-    return pts
+def make_point_frame(point: Tuple[int, int]):
+    """Convert a single (x, y) point to ILDA formatted bytes."""
+    x, y = point
+    px = int(max(0, min(ILDA_MAX, x / 640 * ILDA_MAX)))
+    py = int(max(0, min(ILDA_MAX, 1 - y / 480) * ILDA_MAX))
+    r, g, b = COLORS[color_index]
+    r = int(r * power)
+    g = int(g * power)
+    b = int(b * power)
+    pt = struct.pack("<HHHHH", px, py, r, g, b)
+    return [pt] * 10  # repeat to keep laser on
 
 
 def main():
     start_scanner()
     pygame.init()
     screen = pygame.display.set_mode((640, 480))
-    detector = Detector()
+    tracker = HandTracker()
     cap = cv2.VideoCapture(0)
 
     cube = None
@@ -58,13 +56,15 @@ def main():
         ret, frame = cap.read()
         if not ret:
             break
-        boxes = detector.detect(frame)
-        boxes = detector.track(boxes)
+        points = tracker.detect(frame)
 
         screen.fill((0, 0, 0))
-        for box in boxes:
-            pygame.draw.rect(screen, (0, 255, 0), pygame.Rect(*box), 2)
-            cube.gen_frame = lambda b=box: make_frame(b)
+        if points:
+            pt = points[0]
+            pygame.draw.circle(screen, (0, 255, 0), pt, 5)
+            cube.gen_frame = lambda p=pt: make_point_frame(p)
+        else:
+            cube.gen_frame = lambda: []
         pygame.display.flip()
 
         for ev in pygame.event.get():
