@@ -1,4 +1,4 @@
 pygame
 opencv-python
-ultralytics
 roboflow
+filterpy

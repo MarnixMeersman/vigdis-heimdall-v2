@@ -1,13 +1,12 @@
-"""Entry point for controlling a LaserCube with camera tracking."""
-
 import cv2
 import pygame
 import struct
 import time
-from typing import Tuple
+from typing import List, Tuple
 
 from .detection import Detector
 from .laser import LaserCube, known_lasers, start_scanner
+from .sort import Sort
 
 ILDA_MAX = 0xFFF
 
@@ -20,18 +19,18 @@ COLORS = [
 ]
 
 
-def make_frame(box: Tuple[int, int, int, int]):
-    x1, y1, x2, y2 = box
+def make_point_frame(points: List[Tuple[int, int]]):
+    """Convert points to ILDA formatted bytes."""
     pts = []
-    for x in (x1, x2):
-        for y in (y1, y2):
-            px = int(max(0, min(ILDA_MAX, x / 640 * ILDA_MAX)))
-            py = int(max(0, min(ILDA_MAX, 1 - y / 480) * ILDA_MAX))
-            r, g, b = COLORS[color_index]
-            r = int(r * power)
-            g = int(g * power)
-            b = int(b * power)
-            pts.append(struct.pack("<HHHHH", px, py, r, g, b))
+    for x, y in points:
+        px = int(max(0, min(ILDA_MAX, x / 640 * ILDA_MAX)))
+        py = int(max(0, min(ILDA_MAX, 1 - y / 480) * ILDA_MAX))
+        r, g, b = COLORS[color_index]
+        r = int(r * power)
+        g = int(g * power)
+        b = int(b * power)
+        pt = struct.pack("<HHHHH", px, py, r, g, b)
+        pts.extend([pt] * 10)
     return pts
 
 
@@ -40,14 +39,13 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode((640, 480))
     detector = Detector()
+    tracker = Sort()
     cap = cv2.VideoCapture(0)
 
     cube = None
     while cube is None:
         if known_lasers:
             cube = next(iter(known_lasers.values()))
-        for sock in []:
-            pass
         time.sleep(0.1)
 
     cube.gen_frame = lambda: []
@@ -59,12 +57,18 @@ def main():
         if not ret:
             break
         boxes = detector.detect(frame)
-        boxes = detector.track(boxes)
+        centers = [((x1 + x2) // 2, (y1 + y2) // 2) for x1, y1, x2, y2 in boxes]
+        tracks = tracker.update(centers)
 
         screen.fill((0, 0, 0))
-        for box in boxes:
-            pygame.draw.rect(screen, (0, 255, 0), pygame.Rect(*box), 2)
-            cube.gen_frame = lambda b=box: make_frame(b)
+        for (x1, y1, x2, y2) in boxes:
+            pygame.draw.rect(screen, (0, 255, 0), pygame.Rect(x1, y1, x2 - x1, y2 - y1), 2)
+        for pt in tracks:
+            pygame.draw.circle(screen, (255, 0, 0), pt, 4)
+        if tracks:
+            cube.gen_frame = lambda p=tracks: make_point_frame(p)
+        else:
+            cube.gen_frame = lambda: []
         pygame.display.flip()
 
         for ev in pygame.event.get():
