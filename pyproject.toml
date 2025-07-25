@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vigdis-heimdall"
+version = "2.0.0"
+description = "Laser projector control with object detection and hand tracking"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Marnix Meersman"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers", 
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "pygame",
+    "opencv-python",
+    "ultralytics",
+    "roboflow",
+    "mediapipe",
+    "inference",
+    "trackers",
+    "supervision",
+    "pyautogui",
+    "numpy",
+]
+
+[project.scripts]
+heimdall = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["heimdall*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.txt"]

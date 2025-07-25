@@ -3,3 +3,8 @@ opencv-python
 ultralytics
 roboflow
 mediapipe
+inference
+trackers
+supervision
+pyautogui
+numpy

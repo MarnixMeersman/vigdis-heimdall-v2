@@ -1,35 +1,421 @@
 # Vigdis-Heimdall v2
 
-Vigdis-Heimdall v2 is a prototype Python application to control a LaserCube projector over WiFi while tracking objects from a USB camera. It uses YOLO for object detection and the [Roboflow trackers](https://github.com/roboflow/trackers) library for object persistence.
+Vigdis-Heimdall v2 is a modular Python application to control a LaserCube projector over WiFi while tracking objects or hands. It uses YOLO for object detection, MediaPipe for hand tracking, and the [Roboflow trackers](https://github.com/roboflow/trackers) library for object persistence.
 
-The example app projects simple masks onto detected objects. Use the arrow keys to adjust laser power and cycle between red, green and blue output.
+The application projects visual feedback onto detected objects or hand landmarks in real-time using laser projection.
 
-## Repository layout
+## ✨ New in v2.0
 
-- `heimdall/` – package containing reusable modules
-  - `laser.py` – LaserCube network interface
-  - `detection.py` – YOLO detector and tracker wrapper
-  - `hand.py` – simple hand tracker powered by MediaPipe
-  - `app.py` – high-level control loop combining camera input and laser output
-- `main.py` – small entrypoint launching `heimdall.app`
-- `test.py` – reference script from the LaserCube community for experimentation
+- **Modular Architecture**: Clean separation of concerns with dedicated modules
+- **Dual Mode Support**: Object detection mode and hand tracking mode
+- **Better Configuration**: Centralized configuration management
+- **Improved API**: Easy-to-use programmatic interface
+- **Enhanced Testing**: Organized test structure with debug utilities
+- **Backward Compatibility**: Existing workflows continue to work
 
-## Getting Started
+## 📁 Repository Structure
 
-1. Install Python 3.8+.
+```
+vigdis-heimdall-v2/
+├── heimdall/                   # Main package
+│   ├── core/                   # Core functionality
+│   │   ├── laser.py           # LaserCube network interface
+│   │   ├── detection.py       # YOLO detection and tracking
+│   │   └── hand.py            # MediaPipe hand tracking
+│   ├── app.py                 # High-level application logic
+│   └── config.py              # Configuration management
+├── main.py                    # Command-line entrypoint
+├── examples/                  # Usage examples
+│   ├── basic_tracking.py      # Simple object tracking
+│   └── hand_projection.py     # Hand tracking example
+├── tests/                     # Test and debug utilities
+│   └── debug/                 # Debug scripts and tools
+├── models/                    # AI model files
+└── test_data/                 # Test video files
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Python 3.8+
+- LaserCube projector
+- USB camera (for hand tracking mode)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/vigdis-heimdall-v2.git
+   cd vigdis-heimdall-v2
+   ```
+
 2. Install dependencies:
    ```bash
-   pip install pygame opencv-python ultralytics roboflow mediapipe
+   pip install -r requirements.txt
    ```
-3. Connect your LaserCube and camera to the same network.
-4. Run `python main.py` to start the prototype.
 
-## Roadmap
+3. Connect your LaserCube to the same network as your computer.
 
-- Improve mask projection quality and coordinate mapping
-- Expose additional keyboard shortcuts and UI controls
-- Package application for easier deployment
+## 📋 Complete Usage Guide
 
-## Disclaimer
+### Basic Usage (Backward Compatible)
 
-Operating a laser projector can be hazardous. Use appropriate safety precautions and comply with all regulations.
+The simplest way to run Heimdall is the same as before:
+
+```bash
+python main.py
+```
+
+This automatically runs in **detection mode** using the default video file (`test_data/visible.mp4`) with standard settings.
+
+### Command-Line Interface
+
+#### Object Detection Mode
+
+**Basic object detection:**
+```bash
+python main.py --mode detection
+```
+
+**With custom video file:**
+```bash
+python main.py --mode detection --video path/to/your/video.mp4
+```
+
+**With different YOLO model:**
+```bash
+python main.py --mode detection --model yolov8n --video test_data/visible.mp4
+```
+
+**Adjust detection sensitivity:**
+```bash
+python main.py --mode detection --confidence 0.5 --video test_data/visible.mp4
+```
+
+**Complete example with all parameters:**
+```bash
+python main.py --mode detection \
+  --video test_data/visible.mp4 \
+  --model yolov8m-640 \
+  --confidence 0.4
+```
+
+#### Hand Tracking Mode
+
+**Basic hand tracking:**
+```bash
+python main.py --mode hand
+```
+
+**With specific camera:**
+```bash
+python main.py --mode hand --camera 1
+```
+
+**Track only one hand:**
+```bash
+python main.py --mode hand --hands 1
+```
+
+**Complete example with all parameters:**
+```bash
+python main.py --mode hand \
+  --camera 0 \
+  --hands 2
+```
+
+### Command-Line Parameters Reference
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--mode` | `detection` | Operation mode: `detection` or `hand` |
+| `--video` | `test_data/visible.mp4` | Video file path (detection mode only) |
+| `--model` | `yolov8m-640` | YOLO model name (detection mode only) |
+| `--confidence` | `0.3` | Detection confidence threshold (0.0-1.0) |
+| `--camera` | `0` | Camera device index (hand mode only) |
+| `--hands` | `2` | Maximum number of hands to track (hand mode only) |
+
+### Programmatic API Usage
+
+#### Simple Object Detection
+
+```python
+from heimdall import create_detection_app
+
+# Basic usage
+app = create_detection_app()
+app.run()
+
+# With custom parameters
+app = create_detection_app(
+    video_path="my_video.mp4",
+    model_name="yolov8n", 
+    confidence_threshold=0.5
+)
+app.run()
+```
+
+#### Simple Hand Tracking
+
+```python
+from heimdall import create_hand_app
+
+# Basic usage
+app = create_hand_app()
+app.run()
+
+# With custom parameters
+app = create_hand_app(
+    camera_index=1,
+    max_num_hands=1,
+    min_detection_confidence=0.7
+)
+app.run()
+```
+
+#### Advanced Configuration
+
+```python
+from heimdall import HeimdallApp
+from heimdall.config import AppConfig, DetectionConfig, HandConfig
+
+# Advanced detection configuration
+detection_config = DetectionConfig(
+    model_name="yolov8m-640",
+    confidence_threshold=0.6,
+    nms_threshold=0.4,
+    video_path="custom_video.mp4"
+)
+
+config = AppConfig(detection=detection_config, mode="detection")
+app = HeimdallApp(config)
+app.run()
+
+# Advanced hand tracking configuration  
+hand_config = HandConfig(
+    camera_index=0,
+    max_num_hands=1,
+    min_detection_confidence=0.8,
+    min_tracking_confidence=0.7
+)
+
+config = AppConfig(hand=hand_config, mode="hand")
+app = HeimdallApp(config)
+app.run()
+```
+
+#### Using Individual Components
+
+```python
+# Just the laser controller
+from heimdall.core.laser import LaserController
+
+def my_frame_generator():
+    # Your custom frame generation logic
+    return []
+
+controller = LaserController(my_frame_generator)
+controller.run()
+
+# Just object detection
+from heimdall.core.detection import ObjectDetector
+
+detector = ObjectDetector(confidence_threshold=0.5)
+detector.start_detection("my_video.mp4")
+
+# Get current detection
+bbox = detector.get_current_bbox()
+print(f"Current detection: {bbox}")
+
+detector.stop_detection()
+```
+
+### Examples and Testing
+
+#### Running Built-in Examples
+
+**Basic object tracking example:**
+```bash
+python examples/basic_tracking.py
+```
+
+**Hand projection example:**
+```bash
+python examples/hand_projection.py
+```
+
+#### Debug and Testing Tools
+
+**Run the original UAV tracker (standalone):**
+```bash
+python tests/debug/UAV_tracker.py test_data/visible.mp4
+```
+
+**Test hand detection only (no laser):**
+```bash
+python tests/debug/pure_hands.py
+```
+
+**Debug with hands and laser integration:**
+```bash
+python tests/debug/debug_w_hands.py
+```
+
+### Package Installation
+
+#### Development Installation
+```bash
+# Install in development mode (changes reflect immediately)
+pip install -e .
+
+# Now you can run from anywhere
+heimdall --mode detection --video my_video.mp4
+```
+
+#### Production Installation
+```bash
+# Install from source
+pip install .
+
+# Or install directly from Git
+pip install git+https://github.com/yourusername/vigdis-heimdall-v2.git
+```
+
+## 🔧 Configuration Options
+
+### Detection Mode Parameters
+
+- **`model_name`**: YOLO model identifier
+  - Options: `yolov8n`, `yolov8s`, `yolov8m`, `yolov8l`, `yolov8x` (plus `-640` variants)
+  - Default: `yolov8m-640`
+  - Larger models = better accuracy, slower speed
+
+- **`confidence_threshold`**: Minimum confidence for detections (0.0-1.0)
+  - Default: `0.3`
+  - Lower = more detections (may include false positives)
+  - Higher = fewer, more confident detections
+
+- **`nms_threshold`**: Non-maximum suppression threshold (0.0-1.0)
+  - Default: `0.3`
+  - Controls removal of overlapping detections
+
+- **`video_path`**: Path to input video file
+  - Supports common formats: MP4, AVI, MOV, etc.
+  - Default: `test_data/visible.mp4`
+
+### Hand Tracking Mode Parameters
+
+- **`camera_index`**: Which camera to use (integer)
+  - Default: `0` (first camera)
+  - Try `1`, `2`, etc. if you have multiple cameras
+
+- **`max_num_hands`**: Maximum hands to detect simultaneously
+  - Default: `2`
+  - Range: 1-4 (higher numbers impact performance)
+
+- **`min_detection_confidence`**: Hand detection threshold (0.0-1.0)
+  - Default: `0.5`
+  - Higher = more stable detection, may miss quick movements
+
+- **`min_tracking_confidence`**: Hand tracking threshold (0.0-1.0)
+  - Default: `0.5`
+  - Higher = smoother tracking, may lose hands more easily
+
+### Laser Configuration
+
+- **`alive_port`**, **`cmd_port`**, **`data_port`**: LaserCube network ports
+  - Defaults: `45456`, `45457`, `45458`
+  - Usually don't need to change these
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+**"Video file not found"**
+```bash
+# Check if file exists
+ls -la test_data/
+# Try with absolute path
+python main.py --video /full/path/to/video.mp4
+```
+
+**"Camera not found" (hand mode)**
+```bash
+# List available cameras (Linux/Mac)
+ls /dev/video*
+# Try different camera indices
+python main.py --mode hand --camera 1
+```
+
+**"LaserCube not found"**
+- Ensure LaserCube is powered on
+- Check WiFi connection (same network as computer)
+- Try restarting the LaserCube
+
+**Performance Issues**
+```bash
+# Use smaller/faster model
+python main.py --model yolov8n --confidence 0.5
+
+# Reduce hand tracking load
+python main.py --mode hand --hands 1
+```
+
+### Debugging
+
+**Enable verbose output:**
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+from heimdall import create_detection_app
+app = create_detection_app()
+app.run()
+```
+
+**Test components individually:**
+```python
+# Test just frame generation
+from heimdall.core.laser import create_frame_from_bbox
+frame = create_frame_from_bbox((100, 100, 200, 200), 1920, 1080)
+print(f"Generated {len(frame)} points")
+```
+
+## 🔄 Migration from v1
+
+The new version maintains full backward compatibility:
+
+| Old Command | New Equivalent | Notes |
+|-------------|---------------|-------|
+| `python main.py` | `python main.py` | Works exactly the same! |
+| N/A | `python main.py --mode hand` | New hand tracking mode |
+| N/A | `python main.py --confidence 0.5` | New parameter control |
+
+All existing video files, models, and configurations work without changes.
+
+## 🛣️ Roadmap
+
+- [ ] Real-time performance optimizations
+- [ ] Additional projection patterns and effects
+- [ ] Web-based configuration interface
+- [ ] Multi-laser support
+- [ ] Plugin system for custom tracking algorithms
+- [ ] Docker containerization
+
+## ⚠️ Safety Disclaimer
+
+**Operating a laser projector can be hazardous.** 
+
+- Use appropriate safety precautions
+- Comply with all local laser safety regulations
+- Never point lasers at people, vehicles, or aircraft
+- Ensure proper eye protection in the projection area
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
