@@ -1,6 +1,7 @@
 pygame
 opencv-python
 ultralytics
+torch
 roboflow
 mediapipe
 inference

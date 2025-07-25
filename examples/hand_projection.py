@@ -19,8 +19,8 @@ def main():
     
     # Create app with custom parameters
     app = create_hand_app(
-        camera_index=0,              # Use first camera
-        max_num_hands=2,             # Track up to 2 hands
+        camera_index=0,               # Use first camera
+        max_num_hands=2,              # Track up to 2 hands
         min_detection_confidence=0.7  # Higher confidence for stable tracking
     )
     

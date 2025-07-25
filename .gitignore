@@ -1,0 +1,22 @@
+# Video files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+*.3gp
+*.ogv
+*.pt
+*.pth
+*.txt
+*.csv
+*.jpg
+*.png
+
+# Video directories
+test_data/
+videos/
+training/
