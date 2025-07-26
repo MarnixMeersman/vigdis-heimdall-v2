@@ -62,9 +62,9 @@ def create_mouse_frame() -> List[LaserPoint]:
             frame.append(LaserPoint(
                 x=laser_x, 
                 y=laser_y, 
-                r=LASER_POWER,  # Red
-                g=LASER_POWER,  # Green  
-                b=LASER_POWER   # Blue (creates white light)
+                r=LASER_POWER,  
+                g=LASER_POWER,  
+                b=LASER_POWER   
             ))
         
         return frame
