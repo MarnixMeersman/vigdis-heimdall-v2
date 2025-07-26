@@ -2,9 +2,10 @@
 Core functionality modules for Heimdall.
 """
 
-from .laser import LaserController, LaserCube, create_frame_from_bbox
+from .laser import LaserInfo, LaserCube, LaserController, LaserPoint, create_frame_from_bbox
 from .detection import ObjectDetector, DetectionFrameGenerator, create_detector_with_video
 from .hand import HandTracker, HandFrameGenerator, create_hand_tracker_with_camera
+from .tracker import Sort, KalmanBoxTracker
 
 __all__ = [
     "LaserController",
@@ -15,5 +16,7 @@ __all__ = [
     "create_detector_with_video",
     "HandTracker",
     "HandFrameGenerator", 
-    "create_hand_tracker_with_camera"
+    "create_hand_tracker_with_camera",
+    "Sort",
+    "KalmanBoxTracker"
 ]

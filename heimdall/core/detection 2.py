@@ -23,13 +23,13 @@ os.environ.update({
 import threading
 import time
 import warnings
-from typing import Optional, Tuple, Callable, Dict, List
+from typing import Optional, Tuple, Callable
 import cv2
 import numpy as np
 import supervision as sv
 from inference import get_model
+from motpy import MultiObjectTracker, Detection
 import torch
-from .tracker import Sort
 
 # Suppress ML library warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -43,47 +43,6 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 
-def extract_model_classes(model_path: str) -> Dict[int, str]:
-    """Extract class names from YOLO model."""
-    try:
-        if ULTRALYTICS_AVAILABLE:
-            model = YOLO(model_path)
-            class_names = model.names
-            
-            # Handle UAV/drone models with better class mapping
-            if "drone" in model_path.lower() or "uav" in model_path.lower():
-                if len(class_names) == 2 and all(str(i) == name for i, name in class_names.items()):
-                    # Generic numeric classes - provide meaningful mapping
-                    return {0: "background", 1: "UAV"}
-            
-            return class_names
-        else:
-            # Fallback for inference models
-            return {0: "object"}
-    except Exception as e:
-        print(f"Warning: Could not extract classes from {model_path}: {e}")
-        return {0: "object"}
-
-
-def get_target_class_ids(model_path: str, class_names: Dict[int, str] = None) -> List[int]:
-    """Get appropriate target class IDs based on model type."""
-    if class_names is None:
-        class_names = extract_model_classes(model_path)
-    
-    # For UAV/drone models
-    if "drone" in model_path.lower() or "uav" in model_path.lower():
-        # Look for UAV-related classes
-        uav_classes = []
-        for class_id, name in class_names.items():
-            if name.lower() in ["uav", "drone", "aircraft", "1"]:
-                uav_classes.append(class_id)
-        return uav_classes if uav_classes else [1]  # Default to class 1 for drone models
-    
-    # For standard COCO models - return airplane, bird, kite
-    else:
-        return [4, 14, 33]
-
-
 class ObjectDetector:
     """YOLO-based object detector with tracking."""
     
@@ -91,19 +50,19 @@ class ObjectDetector:
                  model_name: str = "models/yolov8x",
                  confidence_threshold: float = 0.1,
                  nms_threshold: float = 0.5,
-                 target_class_id: int = None,  # Auto-detect from model
-                 target_class_ids: list = None,  # Auto-detect from model
+                 target_class_id: int = 4,  # Default to airplane (class 4) for UAV detection
+                 target_class_ids: list = None,  # Support multiple class IDs
                  use_gpu: bool = True,
                  prefer_ultralytics: bool = True):
         """
         Initialize object detector.
         
         Args:
-            model_name: YOLO model identifier or path
+            model_name: YOLO model identifier
             confidence_threshold: Minimum confidence for detections
             nms_threshold: Non-maximum suppression threshold
-            target_class_id: Primary class ID to track (auto-detected if None)
-            target_class_ids: List of class IDs to track (auto-detected if None)
+            target_class_id: Primary class ID to track (4 for airplane/UAV)
+            target_class_ids: List of class IDs to track (e.g., [4, 14, 33] for airplane, bird, kite)
             use_gpu: Enable GPU acceleration using Metal Performance Shaders on Apple Silicon
             prefer_ultralytics: Use Ultralytics YOLO for better GPU support when available
         """
@@ -111,9 +70,6 @@ class ObjectDetector:
         self.device = self._setup_device(use_gpu)
         device_name = "Apple Metal (MPS)" if self.device == "mps" else "CUDA GPU" if self.device == "cuda" else "CPU"
         print(f"🚀 Inference device: {device_name} ({self.device})")
-        
-        # Store model path for class extraction
-        self.model_path = model_name
         
         # Choose model backend based on GPU support and availability
         self.use_ultralytics = (prefer_ultralytics and ULTRALYTICS_AVAILABLE and 
@@ -127,35 +83,26 @@ class ObjectDetector:
             if hasattr(self.model.model, 'to'):
                 self.model.model.to(self.device)
             print(f"Using Ultralytics YOLO model: {ultralytics_model}")
-            self.model_path = ultralytics_model
         else:
             self.model = get_model(model_name)
             print(f"Using Roboflow inference model: {model_name}")
         
-        # Extract class information from model
-        self.class_names = extract_model_classes(self.model_path)
-        print(f"Model classes: {self.class_names}")
-        
         self.confidence_threshold = confidence_threshold
         self.nms_threshold = nms_threshold
-        
-        # Auto-detect target class IDs if not provided
+        self.target_class_id = target_class_id
+        # Set up target class IDs for multi-class UAV/drone detection
         if target_class_ids is None:
-            self.target_class_ids = get_target_class_ids(self.model_path, self.class_names)
+            # Default: airplane (4), bird (14), kite (33) - objects that might be UAVs/drones
+            self.target_class_ids = [4, 14, 33] if target_class_id == 4 else [target_class_id]
         else:
             self.target_class_ids = target_class_ids
-            
-        # Set primary target class ID
-        if target_class_id is None:
-            self.target_class_id = self.target_class_ids[0] if self.target_class_ids else 0
-        else:
-            self.target_class_id = target_class_id
-            
-        print(f"Target class IDs: {self.target_class_ids} (primary: {self.target_class_id})")
-        self.tracker = Sort(
-            max_age=30,        # Keep tracks longer for UAVs
-            min_hits=3,        # Minimum hits before confirming track
-            iou_threshold=0.3  # IoU threshold for association
+        self.tracker = MultiObjectTracker(
+            dt=0.1, 
+            tracker_kwargs={
+                'max_staleness': 15,  # Keep tracks longer for UAVs
+                'min_hits': 2,        # Reduce minimum hits needed
+                'iou_threshold': 0.2  # Lower IoU threshold for small UAVs
+            }
         )
         
         # Thread-safe state
@@ -241,27 +188,27 @@ class ObjectDetector:
             
             # Update tracker
             if len(detections.xyxy) > 0:
-                # Convert detections to SORT format [x1, y1, x2, y2, score]
+                # Convert detections to motpy format
                 detection_boxes = detections.xyxy
-                confidence_scores = detections.confidence if detections.confidence is not None else np.array([0.5] * len(detection_boxes))
+                confidence_scores = detections.confidence if detections.confidence is not None else [0.5] * len(detection_boxes)
+                class_ids = detections.class_id if detections.class_id is not None else [self.target_class_id] * len(detection_boxes)
                 
-                # Create detection array for SORT
-                sort_detections = np.column_stack([detection_boxes, confidence_scores])
-                tracks = self.tracker.update(sort_detections)
+                # Create Detection objects for motpy
+                detection_list = [
+                    Detection(box=np.array(box), score=conf, class_id=cls_id) 
+                    for box, conf, cls_id in zip(detection_boxes, confidence_scores, class_ids)
+                ]
+                tracks = self.tracker.step(detection_list)
                 
                 # Update current bbox (pick first track if any)
-                if len(tracks) > 0:
-                    # tracks format: [x1, y1, x2, y2, track_id]
-                    best_track = tracks[0]  # Take the first track
-                    x1, y1, x2, y2 = best_track[:4]
+                if tracks:
+                    track = tracks[0]
+                    x1, y1, x2, y2 = track.box
                     with self.bbox_lock:
-                        self.current_bbox = (float(x1), float(y1), float(x2), float(y2))
-                else:
-                    with self.bbox_lock:
-                        self.current_bbox = None
+                        self.current_bbox = (x1, y1, x2, y2)
             else:
-                # Update with empty detections to age out tracks
-                self.tracker.update(np.empty((0, 5)))
+                # Step with empty detections to age out tracks
+                self.tracker.step([])
                 with self.bbox_lock:
                     self.current_bbox = None
             

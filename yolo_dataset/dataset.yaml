@@ -1,5 +1,0 @@
-names:
-- UAV
-nc: 1
-train: images/train
-val: images/val

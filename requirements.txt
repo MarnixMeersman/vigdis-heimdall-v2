@@ -5,7 +5,9 @@ torch
 roboflow
 mediapipe
 inference
-trackers
 supervision
 pyautogui
 numpy
+filterpy
+scipy
+matplotlib
